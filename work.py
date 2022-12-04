@@ -1,5 +1,6 @@
-import heatmap as dev
-import metutil
+import heatmap
+import pdf as pdf
+import metutils
 
 import pandas as pd
 import numpy as np
@@ -146,7 +147,7 @@ def tester():
 
     # small demo
     if False:
-        calculator = dev.CalcPdf(theta[0], sd[0], r[0], ncel=ncel, halfrng=halfrng)
+        calculator = pdf.CalcPdf(theta[0], sd[0], r[0], ncel=ncel, halfrng=halfrng)
         pp1, dd1 = calculator.calc_from_pnt(0, 0)
         # dd1 = calculator.clean_array(dd1)
         pp2, dd2 = calculator.calc_from_dens(dd1 / dd1.sum())
@@ -163,7 +164,7 @@ def tester():
 
     #  backtrajectory
     if False:
-        arrays = dev.backward_trajectory(theta, sd, r, ncel=ncel, halfrng=halfrng, return_list=True)
+        arrays = heatmap.backward_trajectory(theta, sd, r, ncel=ncel, halfrng=halfrng, return_list=True)
 
         for i, a in enumerate(arrays):
             fname = f'fig{i:02d}.png'
@@ -179,8 +180,8 @@ def tester():
         # FLIPME!!
         mass_balance = True
 
-        arrays, obj = dev.superpose_trajectories(theta, sd, r, ncel=ncel, halfrng=halfrng, mass_balance=mass_balance,
-                                                 return_list=True, return_obj=True)
+        arrays, obj = heatmap.superpose_trajectories(theta, sd, r, ncel=ncel, halfrng=halfrng, mass_balance=mass_balance,
+                                                     return_list=True, return_obj=True)
 
         for i, a in enumerate(arrays):
             fname = f'fig{i:02d}.png'
@@ -288,9 +289,9 @@ def main(metfname, oroot, start_time, total_minutes, lnlt0=None, halfrng=None, n
     # make them into numpy array...
     r, theta, sd, dte = [_.array for _ in (r, theta, sd, rec['timestamp'])]
 
-    arrays, obj = dev.superpose_trajectories(theta, sd, r,
-                                             nbackward=nbackward, ncel=ncel, halfrng=halfrng,
-                                             mass_balance=mass_balance, return_list=True, return_obj=True)
+    arrays, obj = heatmap.superpose_trajectories(theta, sd, r,
+                                                 nbackward=nbackward, ncel=ncel, halfrng=halfrng,
+                                                 mass_balance=mass_balance, return_list=True, return_obj=True)
 
     for i, a in enumerate(arrays):
         fname = f'{oroot}_fig{i:02d}.png'
