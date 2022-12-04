@@ -6,7 +6,7 @@ from scipy.stats import norm
 import warnings
 
 
-def cart2pol(x: npt.Arraylike, y: npt.ArrayLike) -> (npt.ArrayLike, npt.ArrayLike,):
+def cart2pol(x: npt.ArrayLike, y: npt.ArrayLike) -> (npt.ArrayLike, npt.ArrayLike,):
     """
     cartesian to polar coords
 
@@ -19,7 +19,7 @@ def cart2pol(x: npt.Arraylike, y: npt.ArrayLike) -> (npt.ArrayLike, npt.ArrayLik
     return rho, phi
 
 
-def pol2cart(rho: npt.Arraylike, phi: npt.Arraylike) -> (npt.Arraylike, npt.Arraylike,):
+def pol2cart(rho: npt.ArrayLike, phi: npt.ArrayLike) -> (npt.ArrayLike, npt.ArrayLike,):
     """
     polar to cartesian coords
 
@@ -150,7 +150,7 @@ class CalcPdf:
         # self.dens = self.dens * ( 2  * np.pi * rmax / self.dens.sum() )
 
     @staticmethod
-    def clean_array(self, arr: npt.NDArray, frac_keep: float = .99) -> npt.NDArray:
+    def clean_array(arr: npt.NDArray, frac_keep: float = .99) -> npt.NDArray:
         """
         Clean Array of PDF to mask out low probability parts
 
