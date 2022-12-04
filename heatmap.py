@@ -328,7 +328,7 @@ def backward_trajectory(theta: npt.NDArray, sd: npt.NDArray, rmax: npt.NDArray, 
         return cum_pp
 
 
-def superpose_trajectories(theta: npt.NDArray, sd: npt.NDArray, rmax: npt.NDArray, nbackward: int = 0, ncel: int = None,
+def superpose_trajectories(theta: npt.NDArray, sd: npt.NDArray, rmax: npt.NDArray, nbackward: int = 1, ncel: int = None,
                            halfrng: float = None, mass_balance: bool = None,
                            return_list: bool = False,
                            return_obj: bool = False) -> object:
@@ -338,7 +338,7 @@ def superpose_trajectories(theta: npt.NDArray, sd: npt.NDArray, rmax: npt.NDArra
     :param theta: series of wind direction
     :param sd: series of stdev of wind direction
     :param rmax: series of distance travled
-    :param nbackward:
+    :param nbackward: number of steps to go back trajectory
     :param ncel: number of cells along an 1d axis
     :param halfrng: half of the length of a side
     :param mass_balance: True to conserve mass radially, False to use naive pdf
@@ -354,8 +354,8 @@ def superpose_trajectories(theta: npt.NDArray, sd: npt.NDArray, rmax: npt.NDArra
     else:
         cum_pp = None
     obj0 = None
-    for i in range(0, n - nbackward):
-        slc = slice(i, i + nbackward + 1)
+    for i in range(0, n - nbackward + 1):
+        slc = slice(i, i + nbackward )
         pp = backward_trajectory(theta[slc], sd[slc], rmax[slc], ncel, halfrng, mass_balance, return_list=False,
                                  return_obj=return_obj)
         if return_obj:

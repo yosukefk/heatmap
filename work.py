@@ -240,7 +240,7 @@ def tester():
 
 
 def main(metfname, oroot, start_time, total_minutes, lnlt0=None, halfrng=None, ncel=201,
-         subdiv_minutes=1, nbackward=0, summary_title=None, mass_balance=True):
+         subdiv_minutes=1, nbackward=1, summary_title=None, mass_balance=True):
     met_reader = MetReader(metfname)
 
     # sensor location
@@ -270,7 +270,7 @@ def main(metfname, oroot, start_time, total_minutes, lnlt0=None, halfrng=None, n
     print('mean sd wd', rec['wd_std'].mean())
 
     if halfrng is None:
-        halfrng = np.around(ws_mean * (1 + nbackward) / subdiv_minutes * 60, decimals=-2)
+        halfrng = np.around(ws_mean * nbackward / subdiv_minutes * 60, decimals=-2)
         halfrng = max(halfrng, 100)
         print('halfrng', halfrng)
 
@@ -346,6 +346,6 @@ if __name__ == '__main__':
         'nov09_y25ne',
         start_time=pd.to_datetime('2022-11-12 14:10:00+00:00'),
         total_minutes=25,  # total min going backward
-        nbackward=1,  # back track two minutes
+        nbackward=2,  # back track two minutes
         lnlt0=(ln0, lt0),
     )
