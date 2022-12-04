@@ -3,6 +3,12 @@ import numpy.typing as npt
 
 
 def arr_uuvv2wdws(uuvv: npt.NDArray) -> npt.NDArray:
+    """
+    Given 2d array of u/v wind components, returns 2d array of wind direction/speed
+
+    :param uuvv: 2d array of u/v wind components
+    :return: 2d array of wind direction/speed
+    """
     if len(uuvv.shape) == 1:
         return np.array(uuvv2wdws(uuvv[0], uuvv[1]))
     uu = uuvv[:, 0]
@@ -13,6 +19,12 @@ def arr_uuvv2wdws(uuvv: npt.NDArray) -> npt.NDArray:
 
 
 def arr_wdws2uuvv(wdws: npt.NDArray) -> npt.NDArray:
+    """
+    Given 2d array of wind direction/speed, returns 2d array of u/v wind components
+
+    :param wdws: 2d array of wind direction/speed
+    :return:  2d array of u/v wind components
+    """
     if len(wdws.shape) == 1:
         return np.array(wdws2uuvv(wdws[0], wdws[1]))
 
@@ -24,27 +36,54 @@ def arr_wdws2uuvv(wdws: npt.NDArray) -> npt.NDArray:
 
 
 def arr_average_wdws(wdws: npt.NDArray) -> npt.NDArray:
+    """
+    Given 2d vector of wind direction/speed, average them
+
+    :param wdws: 2d array of wind direction/speed
+    :return: 1d array of wind direction/speed
+    """
     if len(wdws.shape) == 1:
         return np.array(average_wdws(wdws[0], wdws[1]))
     wd = wdws[:, 0]
     ws = wdws[:, 1]
-    return average_wdws(wd, ws)
+    return np.array(average_wdws(wd, ws))
 
 
-def uuvv2wdws(uu: npt.ArrayLike, vv: npt.ArrayLike) -> npt.ArrayLike:
+def uuvv2wdws(uu: npt.ArrayLike, vv: npt.ArrayLike) -> (npt.ArrayLike, npt.ArrayLike):
+    """
+    Given u/v wind components calculate wind direction/speed
+
+    :param uu: u wind component
+    :param vv: v wind component
+    :return: tuple of wind direction/speed
+    """
     wd = ((np.arctan2(uu, vv) * 180 / np.pi) - 180) % 360
     ws = np.sqrt(uu * uu + vv * vv)
     return wd, ws
 
 
-def wdws2uuvv(wd: npt.ArrayLike, ws: npt.ArrayLike) -> npt.ArrayLike:
+def wdws2uuvv(wd: npt.ArrayLike, ws: npt.ArrayLike) -> (npt.ArrayLike, npt.ArrayLike):
+    """
+    Given wdir/spd, calculate u/v wind components
+
+    :param wd: wind direction
+    :param ws: wind speed
+    :return: tuple of u and v wind components
+    """
     theta = np.pi * (270 - wd) / 180
     uu = ws * np.cos(theta)
     vv = ws * np.sin(theta)
     return uu, vv
 
 
-def average_wdws(wd: npt.ArrayLike, ws: npt.ArrayLike) -> npt.ArrayLike:
+def average_wdws(wd: npt.ArrayLike, ws: npt.ArrayLike) -> (npt.ArrayLike, npt.ArrayLike):
+    """
+    Average Wind speed/direction
+
+    :param wd: wind direction
+    :param ws: wind speed
+    :return: tuple of average wind direction/speed
+    """
     uu, vv = wdws2uuvv(wd, ws)
     uu = uu.mean()
     vv = vv.mean()
