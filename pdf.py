@@ -33,13 +33,14 @@ def pol2cart(rho: npt.ArrayLike, phi: npt.ArrayLike) -> (npt.ArrayLike, npt.Arra
 
 
 class CalcPdf:
-    def __init__(self, theta0: float, sd: float, rmax: float, ncel: int = None, halfrng: float = None,
+    def __init__(self, theta0: float, sd: float, rmax: float, speed: float = 1.0, ncel: int = None, halfrng: float = None,
                  mass_balance: bool = False):
         """
 
         :param theta0: wind direction
         :param sd: std deviation of wind direction
         :param rmax: traveled radius at the end
+        :param speed: travel speed (wind speed)
         :param ncel: number of cell along a dimension
         :param halfrng: half of length of a side
         :param mass_balance: True to conserve mass radially, False to use naive pdf
@@ -52,6 +53,7 @@ class CalcPdf:
         self.theta0 = theta0
         self.sd = sd
         self.rmax = rmax
+        self.speed = speed
 
         # grid info
         self.halfrng = halfrng
@@ -87,7 +89,9 @@ class CalcPdf:
         # almost, DONE!  "pseudo" probability at each coords...
         p = norm.pdf(theta, scale=self.sd)
         if mass_balance:
-            p /= rho
+            with np.errstate(divide='ignore'):
+                p /= (rho * speed)
+
         no = (self.ncel - 1) // 2
         np.set_printoptions(edgeitems=10)
         np.core.arrayprint._line_width = 180
@@ -110,7 +114,8 @@ class CalcPdf:
         pc = norm.pdf(thetac, scale=self.sd)
         # print('pc', pc)
         if mass_balance:
-            pc /= rhoc[(no - 1):(no + 3), (no - 1):(no + 3)]
+            pc /= (rhoc[(no - 1):(no + 3), (no - 1):(no + 3)] * speed)
+
         p[(no - 1):(no + 2), (no - 1):(no + 2)] = (
                 .5 * p[(no - 1):(no + 2), (no - 1):(no + 2)] +
                 .125 * pc[:-1, :-1] +
