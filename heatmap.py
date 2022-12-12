@@ -99,6 +99,7 @@ class Heatmap:
         self.canvas = np.zeros((ny, nx))
         self.xcoords = np.linspace(xmin, xmax, nx)
         self.ycoords = np.linspace(ymin, ymax, ny)
+        self.extent = [self.xcoords[0], self.xcoords[-1], self.ycoords[0], self.ycoords[-1]]
 
         self.df_sites = (self.df_sites
                 .assign( 
@@ -128,7 +129,7 @@ class Heatmap:
     def combine_by_time_device(self, device, dtm, canvas=None):
 
         evt = self.df_events[device]
-        if evt[dtm] <= 0:
+        if np.isnan(evt[dtm]) or evt[dtm] <= 0:
             return canvas
 
         ioff, joff = [self.df_sites.loc[device][_].astype(int) for _ in ('ioff', 'joff')]
@@ -137,7 +138,7 @@ class Heatmap:
             canvas = np.zeros_like(self.canvas)
 
         for stuff in self.arrays[dtm]:
-            canvas[joff:(joff+self.ncel),ioff:(ioff+self.ncel)] += stuff['pdf']
+            canvas[joff:(joff+self.ncel),ioff:(ioff+self.ncel)] += stuff['pdf'] * evt[dtm]
         return canvas
 
         

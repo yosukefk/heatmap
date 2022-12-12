@@ -9,14 +9,25 @@ reload(pdf)
 import pandas as pd
 import numpy as np
 
+import matplotlib as mpl
 import matplotlib.pylab as plt
 from matplotlib.colors import LogNorm, BoundaryNorm, ListedColormap
 from matplotlib import ticker
+mpl.use('Agg')
+# to match with standard mp4
+mpl.pylab.rcParams["figure.figsize"] = (4.8, 3.2)
+mpl.pylab.rcParams["figure.dpi"] = 300
 
 from plotter import plotter_solo as psolo
 from plotter.plotter_background import BackgroundManager
+import cartopy
 import cartopy.crs as ccrs
 import cartopy.io.img_tiles as cimgt
+
+import tempfile
+import subprocess
+import shlex
+from pathlib import Path
 
 
 class MetReader:
@@ -71,8 +82,8 @@ def mk_color(arr):
     else:
         fac = 1
 
-    norm = LogNorm(vmax=amax, vmin=amax / 1000, clip=True)
 
+    norm = LogNorm(vmax=(amax * fac), vmin=(amax / 1000 * fac), clip=True)
     if fac == 1:
         bdry = np.array([1, 2, 5, 10, 20, 50, 100, 200, 500, 1000]) / 1000 * amax
     elif fac == .5:
@@ -91,21 +102,39 @@ def mk_color(arr):
 
 
 # plot with pylab
-def mkplt_pylab(arr, fname, halfrng, ttle=None, contour=False, *args, **kwds):
+def mkplt_pylab_old(arr, fname, halfrng, ttle=None, contour=False, *args, **kwds):
+    extent = [-halfrng, halfrng, -halfrng, halfrng]
+    mkplt_pylab(arr, fname, extent, ttle, contour, *args, **kwds)
+    ### plt.clf()
+    ### if contour:
+    ###     plt.contourf(arr[:, :], extent=[-halfrng, halfrng, -halfrng, halfrng], *args, **kwds)
+    ### else:
+    ###     plt.imshow(arr[-1::-1, :], extent=[-halfrng, halfrng, -halfrng, halfrng], *args, **kwds)
+    ### plt.colorbar()
+    ### plt.xlabel('(meters)')
+    ### plt.ylabel('(meters)')
+    ### if not ttle is None:
+    ###     plt.title(ttle)
+
+    ### plt.savefig(fname)
+
+def mkplt_pylab(arr, fname, extent, ttle=None, contour=False, *args, **kwds):
     plt.clf()
+    fig = plt.figure()
+    ax = fig.add_subplot(111)
     if contour:
-        plt.contourf(arr[:, :], extent=[-halfrng, halfrng, -halfrng, halfrng], *args, **kwds)
+        plt.contourf(arr[:, :], extent=extent, *args, **kwds)
     else:
-        plt.imshow(arr[-1::-1, :], extent=[-halfrng, halfrng, -halfrng, halfrng], *args, **kwds)
+        plt.imshow(arr[-1::-1, :], extent=extent, *args, **kwds)
     plt.colorbar()
     plt.xlabel('(meters)')
     plt.ylabel('(meters)')
+    #ax.set_aspect((extent[3] - extent[2]) / (extent[1] - extent[0]))
+    ax.set_aspect(1)
     if not ttle is None:
         plt.title(ttle)
 
     plt.savefig(fname)
-
-def mkplt_pylab(arr, fname, x, y, *args, **kwds):
 
 
 # plot with plotter
@@ -114,11 +143,15 @@ def mkplt_plotter(arr, fname, x, y, prj, start_time, ttle=None, *args, **kwds):
     arrx = np.expand_dims(arr, axis=0)
     contour_options = {**{'alpha': .5},
                        **{_: kwds[_] for _ in ('norm', 'levels', 'cmap') if _ in kwds}}
+    if cartopy.__version__ >= '0.19':
+        imgopts = [cimgt.GoogleTiles(style='satellite', cache=True)]
+    else:
+        imgopts = [cimgt.GoogleTiles(style='satellite')]
     p = psolo.Plotter(arrx, tstamps=[start_time], x=x, y=y, projection=prj,
                       plotter_options={
                           'contour_options': contour_options,
                           'background_manager': BackgroundManager(
-                              add_image_options=[cimgt.GoogleTiles(style='satellite', cache=True)],
+                              add_image_options=imgopts,
                           ),
                       })
     p.savefig(fname)
@@ -155,7 +188,7 @@ def set_xy(df_sites):
         central_longitude=lon, central_latitude=lat,
         standard_parallels=(lat, lat), globe=ccrs.Globe())
 
-    xyz =  prj.transform_points(ccrs.PlateCarree(),  df_sites.longitude, df_sites.latitude)
+    xyz =  prj.transform_points(ccrs.PlateCarree(),  df_sites.longitude.values, df_sites.latitude.values)
     df_sites['x'] = xyz[:, 0]
     df_sites['y'] = xyz[:, 1] 
     df_sites['distance'] = (df_sites['x'] ** 2 + df_sites['y'] ** 2).apply(np.sqrt)
@@ -220,13 +253,56 @@ def main(metfname, evtfname, sitefname, oroot, lnlt0=None, halfrng=None, ncel=20
             .drop(columns=['use'])
             )
 
-    heatmap = hm.Heatmap(df_met, df_events, df_sites, nbackward=nbackward)
+    heatmap = hm.Heatmap(df_met, df_events, df_sites, nbackward=nbackward, mass_balance=mass_balance)
 
     arr = heatmap.combine_all()
-
     norm, bnorm, bdry, cm = mk_color(arr)
+    print(bdry[-1], arr.max())
 
-    mkplt_pylab(np.maximum(arr, 0.001), f'{oroot}_contour.png', halfrng, summary_title, contour=True, norm=bnorm, levels=bdry, cmap=cm)
+    extent = [heatmap.xcoords[0], heatmap.xcoords[-1], heatmap.ycoords[0], heatmap.ycoords[-1],]
+    aspect = ( extent[3]-extent[2]) / ( extent[1] - extent[0])
+    print(extent, aspect)
+
+#    tempdir = tempfile.TemporaryDirectory()
+#    wdir = Path(tempdir.name)
+    wdir = Path('.')
+    fpsopt = '-r 2'
+    norm_, bnorm_, bdry_, cm_ = mk_color(arr / len(heatmap.df_events.index))
+    print(bdry_[-1], (arr/len(heatmap.df_events.index)).max())
+    for i, dtm in enumerate(heatmap.df_events.index):
+        fname = f'{oroot}_fig{i:02d}.png'
+        #fname = f'{i:02d}.png'
+        met = heatmap.df_met.loc[dtm]
+        ttle = f'{dtm}\nws {met["wspd"]:4.1f} m/sec, wd {met["wdir"]:3.0f} deg, sd_wd {met["wd_std"]:4.1f} deg'
+        a = heatmap.combine_by_time(dtm)
+        print(a.max(), bdry_[-1])
+        #mkplt_pylab(np.maximum(a, 0.001), wdir / fname, extent=extent, ttle=ttle, contour=True, norm=bnorm_, levels=bdry_, cmap=cm_) 
+        mkplt_pylab(a, wdir / fname, extent=extent, ttle=ttle, contour=True, norm=bnorm_, levels=bdry_, cmap=cm_) 
+    
+
+    fname_sh = f'{oroot}_fig%02d.png'
+    #fname_sh = f'%02d.png'
+    oname = f'{oroot}_contour.mp4'
+
+    png_w = mpl.pyplot.rcParams['figure.figsize'][0] * mpl.pyplot.rcParams['figure.dpi']
+    print(png_w)
+    #adjust_width = f'-vf scale={png_w}:-2'
+    adjust_width = ''
+    #adjust_width = f'-vf scale=640:-2'
+
+    cmd = f'ffmpeg {fpsopt} -i "{Path(wdir) / fname_sh }" {adjust_width} -vframes {len(heatmap.df_events.index)} -crf 3 -vcodec libx264 -pix_fmt yuv420p -f mp4 -y  "{oname}"'
+    print(cmd)
+    try:
+        subprocess.run(shlex.split(cmd), check=True)
+    except subprocess.CalledProcessError:
+        fname_sh2 = f'{oroot}_fig??.png'
+        oname2 = f'{oroot}_contour.gif'
+        cmd2 = f'convert -delay 100 "{Path(wdir) / fname_sh2 }" "{oname}"'
+        subprocess.run(shlex.split(cmd2), check=False)
+    
+
+    #mkplt_pylab(np.maximum(arr, 0.001), f'{oroot}_contour.png', extent=extent, ttle=summary_title, contour=True, norm=bnorm, levels=bdry, cmap=cm)
+    mkplt_pylab(arr, f'{oroot}_contour.png', extent=extent, ttle=summary_title, contour=True, norm=bnorm, levels=bdry, cmap=cm)
     mkplt_plotter(arr, f'{oroot}_w_bg.png', heatmap.xcoords, heatmap.ycoords, prj, start_time=heatmap.datetimes[0], norm=bnorm, levels=bdry, cmap=cm)
 
 
