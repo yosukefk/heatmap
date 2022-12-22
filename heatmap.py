@@ -3,6 +3,8 @@ import metutils
 #from pdf import CalcPdf
 import pdf
 
+#from scipy.interpolate import RBFInterpolator
+from invdisttree import Invdisttree
 from numpy import typing as npt
 import numpy as np
 
@@ -25,7 +27,7 @@ class Heatmap:
 
         self.sites = df_events.columns
         #self.datetimes = df_events.index.values
-        self.datetimes = df_met.index
+        self.datetimes = df_met.index.unique(level='datetime')
 
         self.ncel = ncel
         self.halfrng = halfrng
@@ -39,7 +41,8 @@ class Heatmap:
 
     def prepare(self):
 
-        assert len(self.df_met.index) - len(self.df_events.index) + 1 == self.nbackward
+
+        assert len(self.df_met.index.unique(level='datetime')) - len(self.df_events.index) + 1 == self.nbackward
 
         # prepare met (use radian, cartesian coordinates)
         self.df_met = (self.df_met
@@ -56,6 +59,7 @@ class Heatmap:
                 )
 
         if self.subdiv_minutes > 1:
+            raise NotImplemented('will think about this feature')
             # TODO, need to update this... what shall  i do now, ?  lookup with tstamp, or stick to linear index?
             # repeat each records subdiv times, except the start time which is not repeated
             rec = rec.iloc[np.arange(total_minutes).repeat(subdiv_minutes), :][:(1 - subdiv_minutes)]
@@ -71,46 +75,97 @@ class Heatmap:
         # prepare calculators
         if self.halfrng is None:
             wd_mean, ws_mean = metutils.average_wdws(self.df_met['wdir'], self.df_met['wspd'])
-            halfrng = np.around(ws_mean * self.nbackward / self.subdiv_minutes * 60, decimals=-2)
-            halfrng = max(halfrng , 100)
+            halfrng = np.around(ws_mean * self.nbackward / self.subdiv_minutes * 60, decimals=-1) # nearest 10m
+            halfrng = max(halfrng , 100) # at least 100m
 #            import pdb; pdb.set_trace()
             #rmax = self.df_met.wspd.max()
             #halfrng = rmax * self.nbackward * 60
             #self.halfrng = np.ceil(halfrng / 100) * 100
             #import pdb; set_trace()
             self.halfrng = halfrng
+
         if self.ncel is None:
             self.ncel = 201
+
+        if self.ncel // 2 == 0:
+            self.ncel += 1
+            warnings.warn(f'ncel changed to odd number: {self.ncel}')
+
+        halfncel = (self.ncel - 1) // 2
+
         self.res = (self.halfrng * 2) / (self.ncel - 1)
 
         # prepare canvas
         print(self.df_sites)
         print(self.df_sites.x.min(), self.df_sites.x.max(), self.df_sites.y.min(), self.df_sites.y.max())
-        xmin = self.df_sites.x.min() - self.halfrng
-        xmax = self.df_sites.x.max() + self.halfrng
-        ymin = self.df_sites.y.min() - self.halfrng
-        ymax = self.df_sites.y.max() + self.halfrng
-        print(xmin, xmax, ymin, ymax)
+        xmin0 = self.df_sites.x.min() - self.halfrng
+        xmax0 = self.df_sites.x.max() + self.halfrng
+        ymin0 = self.df_sites.y.min() - self.halfrng
+        ymax0 = self.df_sites.y.max() + self.halfrng
+        print(xmin0, xmax0, ymin0, ymax0)
 
-        nx = np.ceil( (xmax - xmin) / self.res + 1 ).astype(int) 
-        ny = np.ceil( (ymax - ymin) / self.res + 1 ).astype(int) 
-        print(xmax-xmin, ymax-ymin, self.res, nx, ny)
+        # i have to fill the canvas with tiles of calculators
+        # interval between two calcculators = 101
+        # total width becomes 101*m+100  where m is number of calculators
+        # 
+
+        mx = np.ceil(((xmax0-xmin0) - halfrng)/(halfrng+1)).astype(int)
+        my = np.ceil(((ymax0-ymin0) - halfrng)/(halfrng+1)).astype(int)
+
+        nx = (halfncel+1) * mx + halfncel
+        ny = (halfncel+1) * my + halfncel
+
+        xrng,yrng = nx*self.res, ny*self.res
+        xmin = .5+(xmin0+xmax0) - .5*xrng
+        xmax = .5+(xmin0+xmax0) + .5*xrng
+        ymin = .5+(ymin0+ymax0) - .5*yrng
+        ymax = .5+(ymin0+ymax0) + .5*yrng
+
+
+
+        print(xmax0-xmin0, ymax0-ymin0, xmax-xmin, ymax-ymin, self.res, nx, ny, mx, my)
+
 
         self.canvas = np.zeros((ny, nx))
         self.xcoords = np.linspace(xmin, xmax, nx)
         self.ycoords = np.linspace(ymin, ymax, ny)
         self.extent = [self.xcoords[0], self.xcoords[-1], self.ycoords[0], self.ycoords[-1]]
 
+        # calculators
+        self.calculators = [[None] * mx] * my
+        calculator_i0 = np.tile([halfncel + (_)*(halfncel+1) for _ in range(mx)], my)
+        calculator_j0 = np.tile([halfncel + (_)*(halfncel+1) for _ in range(my)], mx)
+        calculator_x0 = np.tile([self.xcoords[halfncel + (_)*(halfncel+1)] for _ in range(mx)], my)
+        calculator_y0 = np.repeat([self.ycoords[halfncel + (_)*(halfncel+1)] for _ in range(my)], mx)
+        self.calculator_origin_ijdx = np.vstack([calculator_j0, calculator_i0]).T
+        self.calculator_origin_coords = np.vstack([calculator_y0, calculator_x0]).T
+
         self.df_sites = (self.df_sites
                 .assign( 
-                    i = lambda x: np.round(x['x'] / self.res ).astype(int), 
-                    j = lambda x: np.round(x['y'] / self.res ).astype(int),
-                    ioff = lambda x: np.round((x['x'] - (self.xcoords[0] + self.halfrng)) / self.res ).astype(int), 
-                    joff = lambda x: np.round((x['y'] - (self.ycoords[0] + self.halfrng)) / self.res ).astype(int),
-                    ))
+                    # ijdx of emitter
+                    #i = lambda x: np.round(x['x'] / self.res ).astype(int), 
+                    #j = lambda x: np.round(x['y'] / self.res ).astype(int),
+                    i = lambda x: np.round((x['x'] - self.xcoords[0]) / self.res ).astype(int), 
+                    j = lambda x: np.round((x['y'] - self.ycoords[0]) / self.res ).astype(int),
+
+                    # obsolete
+                    ioff_obsolete = lambda x: np.round((x['x'] - (self.xcoords[0] + self.halfrng)) / self.res ).astype(int), 
+                    joff_obsolete = lambda x: np.round((x['y'] - (self.ycoords[0] + self.halfrng)) / self.res ).astype(int),
+                    )
+                .assign(
+                    # which calculator to start with
+                    cdx = lambda p: ((p.j - halfncel) // (halfncel+1)) * mx + ((p.i - halfncel) // (halfncel+1))
+                    )
+                .assign(
+                    ioff = lambda p: p.i - self.calculator_origin_ijdx[p.cdx, 1],
+                    joff = lambda p: p.j - self.calculator_origin_ijdx[p.cdx, 0],
+                    )
+                )
 
         # this dict holds pdf at each tstep, each age (for nbackward > 1)
         self.arrays = {}
+
+
 
 
     def combine_all(self, canvas=None):
@@ -131,14 +186,17 @@ class Heatmap:
         evt = self.df_events[device]
         if np.isnan(evt[dtm]) or evt[dtm] <= 0:
             return canvas
+        mycdx = self.df_sites.loc[device, 'cdx']
 
-        ioff, joff = [self.df_sites.loc[device][_].astype(int) for _ in ('ioff', 'joff')]
+        ioff, joff = [self.df_sites.loc[device][_].astype(int) for _ in ('ioff_obsolete', 'joff_obsolete')]
 
         if canvas is None:
             canvas = np.zeros_like(self.canvas)
 
         for stuff in self.arrays[dtm]:
-            canvas[joff:(joff+self.ncel),ioff:(ioff+self.ncel)] += stuff['pdf'] * evt[dtm]
+            mypdf = stuff['pdf'][mycdx]
+            
+            canvas[joff:(joff+self.ncel),ioff:(ioff+self.ncel)] += mypdf * evt[dtm]
         return canvas
 
         
@@ -158,8 +216,18 @@ class Heatmap:
 
         met = self.df_met.loc[dtm]
 
-        self.calculator = pdf.CalcPdf(met.theta, met.sd, met.r, met.speed, ncel=self.ncel, halfrng=self.halfrng, mass_balance=self.mass_balance)
+        # TODO i am getting df of multiple sensors, need to aggregate here...?
+        # prepare my * mx calculators, with interpolaated wind
+        theta = Invdisttree(np.vstack([met.y, met.x]).T, met.theta)(self.calculator_origin_coords)
+        sd = Invdisttree(np.vstack([met.y, met.x]).T, met.theta)(self.calculator_origin_coords)
+        r = Invdisttree(np.vstack([met.y, met.x]).T, met.theta)(self.calculator_origin_coords)
+        speed = Invdisttree(np.vstack([met.y, met.x]).T, met.theta)(self.calculator_origin_coords)
 
+        
+        self.calculators = [pdf.CalcPdf(_t, _d, _r, _s, ncel=self.ncel, halfrng=self.halfrng, mass_balance=self.mass_balance) 
+                for (_t, _d, _r, _s) in zip(theta, sd, r, speed)]
+
+        #import pdb; pdb.set_trace()
         # grow old trajectories
 
         for ib, dtmf in enumerate(dtm_forward):
@@ -167,16 +235,18 @@ class Heatmap:
             print(dtm, ib, dtmf, len(lst), self.nbackward - ib - 1)
             #assert len(lst) == self.nbackward - ib - 1
 
+            warings.warn('problematic! i cannot do this way, since event may not occur at center of calculator.  so it may be off in different part of arc')
             pp, dd = self.calculator.calc_from_dens(lst[-1]['edge'])
             lst.append({'datetime': dtm, 'pdf': pp, 'edge': dd} )
 
         # new trajectories
-        pp, dd = self.calculator.calc_from_pnt(0, 0)
+        #pp, dd = self.calculator.calc_from_pnt(0, 0)
+        pp , dd = [], []
+        for calc in self.calculators:
+            ppp,ddd=calc.calc_from_pnt(0,0)
+            pp.append(ppp)
+            dd.append(ddd)
         self.arrays[dtm] = [{'datetime': dtm, 'pdf':pp, 'edge': dd}]
-
-
-
-        
 
 
 
