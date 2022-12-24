@@ -268,6 +268,7 @@ def main(metfname, evtfname, sitefname, oroot, lnlt0=None, halfrng=None, ncel=20
 #    wdir = Path(tempdir.name)
     wdir = Path('.')
     fpsopt = '-r 2'
+#    fpsopt = ''
     norm_, bnorm_, bdry_, cm_ = mk_color(arr / len(heatmap.df_events.index))
     print(bdry_[-1], (arr/len(heatmap.df_events.index)).max())
     for i, dtm in enumerate(heatmap.df_events.index):
@@ -288,8 +289,8 @@ def main(metfname, evtfname, sitefname, oroot, lnlt0=None, halfrng=None, ncel=20
 
     png_w = mpl.pyplot.rcParams['figure.figsize'][0] * mpl.pyplot.rcParams['figure.dpi']
     print(png_w)
-    #adjust_width = f'-vf scale={png_w}:-2'
-    adjust_width = ''
+    adjust_width = f'-vf scale={int(png_w)}:-2'
+    #adjust_width = ''
     #adjust_width = f'-vf scale=640:-2'
 
     cmd = f'ffmpeg {fpsopt} -i "{Path(wdir) / fname_sh }" {adjust_width} -vframes {len(heatmap.df_events.index)} -crf 3 -vcodec libx264 -pix_fmt yuv420p -f mp4 -y  "{oname}"'
