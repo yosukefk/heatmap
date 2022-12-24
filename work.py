@@ -242,11 +242,12 @@ def main(metfname, evtfname, sitefname, oroot, lnlt0=None, halfrng=None, ncel=20
     df_met = df_met.merge(df_sites.loc[:,['x', 'y', 'distance']], on='device', how='left')
     #print(df_met)
     df_met = (df_met
-    #        .loc[df_met.distance == df_met.distance.min(), :] 
+            .loc[df_met.distance == df_met.distance.min(), :] 
             .sort_values('datetime', ascending=False)
             .set_index(['datetime', 'device'])
             )
     #print(df_met)
+    df_met = df_met.loc[~np.isnan(df_met.x), :]
 
     df_sites = (df_sites
             .loc[df_sites.use, :] 
@@ -255,7 +256,7 @@ def main(metfname, evtfname, sitefname, oroot, lnlt0=None, halfrng=None, ncel=20
 
     heatmap = hm.Heatmap(df_met, df_events, df_sites, nbackward=nbackward, mass_balance=mass_balance)
 
-    arr = heatmap.combine_all()
+    arr = heatmap.arr.sum(axis=0)
     norm, bnorm, bdry, cm = mk_color(arr)
     print(bdry[-1], arr.max())
 
@@ -273,8 +274,9 @@ def main(metfname, evtfname, sitefname, oroot, lnlt0=None, halfrng=None, ncel=20
         fname = f'{oroot}_fig{i:02d}.png'
         #fname = f'{i:02d}.png'
         met = heatmap.df_met.loc[dtm]
-        ttle = f'{dtm}\nws {met["wspd"]:4.1f} m/sec, wd {met["wdir"]:3.0f} deg, sd_wd {met["wd_std"]:4.1f} deg'
-        a = heatmap.combine_by_time(dtm)
+        ttle = f'{dtm}\nws {met["wspd"].values[0]:4.1f} m/sec, wd {met["wdir"].values[0]:3.0f} deg, sd_wd {met["wd_std"].values[0]:4.1f} deg'
+        #a = heatmap.combine_by_time(dtm)
+        a = heatmap.arr[i]
         print(a.max(), bdry_[-1])
         #mkplt_pylab(np.maximum(a, 0.001), wdir / fname, extent=extent, ttle=ttle, contour=True, norm=bnorm_, levels=bdry_, cmap=cm_) 
         mkplt_pylab(a, wdir / fname, extent=extent, ttle=ttle, contour=True, norm=bnorm_, levels=bdry_, cmap=cm_) 

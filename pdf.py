@@ -54,6 +54,7 @@ class CalcPdf:
         self.sd = sd
         self.rmax = rmax
         self.speed = speed
+        self.mass_balance = mass_balance
 
         # grid info
         self.halfrng = halfrng
@@ -88,9 +89,9 @@ class CalcPdf:
 
         # almost, DONE!  "pseudo" probability at each coords...
         p = norm.pdf(theta, scale=self.sd)
-        if mass_balance:
+        if self.mass_balance:
             with np.errstate(divide='ignore'):
-                p /= (rho * speed)
+                p /= (rho * self.speed)
 
         no = (self.ncel - 1) // 2
         np.set_printoptions(edgeitems=10)
@@ -127,7 +128,7 @@ class CalcPdf:
         # raise
 
         # mask out the protion beyond the rmax
-        print('self.rmax', self.rmax)
+        #print('self.rmax', self.rmax)
         self.p = np.ma.masked_where(rho > self.rmax, p)
         # prep for next step:  identify where the front is, and distribution  at front
 
@@ -153,6 +154,10 @@ class CalcPdf:
 
         # calibrate so that sum across the front becomes 2*pi*r
         # self.dens = self.dens * ( 2  * np.pi * rmax / self.dens.sum() )
+
+    def __str__(self):
+        return f'''{repr(self)} with theta0={self.theta0:.2f} rad, sd={self.sd:.2f} rad, rmax={self.rmax:.2f} m, speed={self.speed:.2f} m/sec ncel={self.ncel}, halfrng={self.halfrng:.2f} '''
+
 
     @staticmethod
     def clean_array(arr: npt.NDArray, frac_keep: float = .99) -> npt.NDArray:
