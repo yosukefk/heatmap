@@ -252,23 +252,24 @@ def main(metfname, evtfname, sitefname, oroot, lnlt0=None, halfrng=None, ncel=20
             .loc[df_sites.use, :] 
             .drop(columns=['use'])
             )
+    #return df_sites, df_met, df_events
 
     heatmap = hm.Heatmap(df_met, df_events, df_sites, nbackward=nbackward, mass_balance=mass_balance)
 
     arr = heatmap.combine_all()
-    norm, bnorm, bdry, cm = mk_color(arr)
-    print(bdry[-1], arr.max())
-
+#    norm, bnorm, bdry, cm = mk_color(arr)
+#    print(bdry[-1], arr.max())
+#
     extent = [heatmap.xcoords[0], heatmap.xcoords[-1], heatmap.ycoords[0], heatmap.ycoords[-1],]
-    aspect = ( extent[3]-extent[2]) / ( extent[1] - extent[0])
-    print(extent, aspect)
-
-#    tempdir = tempfile.TemporaryDirectory()
-#    wdir = Path(tempdir.name)
+#    aspect = ( extent[3]-extent[2]) / ( extent[1] - extent[0])
+#    print(extent, aspect)
+#
+##    tempdir = tempfile.TemporaryDirectory()
+##    wdir = Path(tempdir.name)
     wdir = Path('.')
-    fpsopt = '-r 2'
+#    fpsopt = '-r 2'
     norm_, bnorm_, bdry_, cm_ = mk_color(arr / len(heatmap.df_events.index))
-    print(bdry_[-1], (arr/len(heatmap.df_events.index)).max())
+#    print(bdry_[-1], (arr/len(heatmap.df_events.index)).max())
     for i, dtm in enumerate(heatmap.df_events.index):
         fname = f'{oroot}_fig{i:02d}.png'
         #fname = f'{i:02d}.png'
@@ -280,30 +281,30 @@ def main(metfname, evtfname, sitefname, oroot, lnlt0=None, halfrng=None, ncel=20
         mkplt_pylab(a, wdir / fname, extent=extent, ttle=ttle, contour=True, norm=bnorm_, levels=bdry_, cmap=cm_) 
     
 
-    fname_sh = f'{oroot}_fig%02d.png'
-    #fname_sh = f'%02d.png'
-    oname = f'{oroot}_contour.mp4'
-
-    png_w = mpl.pyplot.rcParams['figure.figsize'][0] * mpl.pyplot.rcParams['figure.dpi']
-    print(png_w)
-    #adjust_width = f'-vf scale={png_w}:-2'
-    adjust_width = ''
-    #adjust_width = f'-vf scale=640:-2'
-
-    cmd = f'ffmpeg {fpsopt} -i "{Path(wdir) / fname_sh }" {adjust_width} -vframes {len(heatmap.df_events.index)} -crf 3 -vcodec libx264 -pix_fmt yuv420p -f mp4 -y  "{oname}"'
-    print(cmd)
-    try:
-        subprocess.run(shlex.split(cmd), check=True)
-    except subprocess.CalledProcessError:
-        fname_sh2 = f'{oroot}_fig??.png'
-        oname2 = f'{oroot}_contour.gif'
-        cmd2 = f'convert -delay 100 "{Path(wdir) / fname_sh2 }" "{oname}"'
-        subprocess.run(shlex.split(cmd2), check=False)
-    
-
-    #mkplt_pylab(np.maximum(arr, 0.001), f'{oroot}_contour.png', extent=extent, ttle=summary_title, contour=True, norm=bnorm, levels=bdry, cmap=cm)
-    mkplt_pylab(arr, f'{oroot}_contour.png', extent=extent, ttle=summary_title, contour=True, norm=bnorm, levels=bdry, cmap=cm)
-    mkplt_plotter(arr, f'{oroot}_w_bg.png', heatmap.xcoords, heatmap.ycoords, prj, start_time=heatmap.datetimes[0], norm=bnorm, levels=bdry, cmap=cm)
+#    fname_sh = f'{oroot}_fig%02d.png'
+#    #fname_sh = f'%02d.png'
+#    oname = f'{oroot}_contour.mp4'
+#
+#    png_w = mpl.pyplot.rcParams['figure.figsize'][0] * mpl.pyplot.rcParams['figure.dpi']
+#    print(png_w)
+#    #adjust_width = f'-vf scale={png_w}:-2'
+#    adjust_width = ''
+#    #adjust_width = f'-vf scale=640:-2'
+#
+#    cmd = f'ffmpeg {fpsopt} -i "{Path(wdir) / fname_sh }" {adjust_width} -vframes {len(heatmap.df_events.index)} -crf 3 -vcodec libx264 -pix_fmt yuv420p -f mp4 -y  "{oname}"'
+#    print(cmd)
+#    try:
+#        subprocess.run(shlex.split(cmd), check=True)
+#    except subprocess.CalledProcessError:
+#        fname_sh2 = f'{oroot}_fig??.png'
+#        oname2 = f'{oroot}_contour.gif'
+#        cmd2 = f'convert -delay 100 "{Path(wdir) / fname_sh2 }" "{oname}"'
+#        subprocess.run(shlex.split(cmd2), check=False)
+#    
+#
+#    #mkplt_pylab(np.maximum(arr, 0.001), f'{oroot}_contour.png', extent=extent, ttle=summary_title, contour=True, norm=bnorm, levels=bdry, cmap=cm)
+#    mkplt_pylab(arr, f'{oroot}_contour.png', extent=extent, ttle=summary_title, contour=True, norm=bnorm, levels=bdry, cmap=cm)
+#    mkplt_plotter(arr, f'{oroot}_w_bg.png', heatmap.xcoords, heatmap.ycoords, prj, start_time=heatmap.datetimes[0], norm=bnorm, levels=bdry, cmap=cm)
 
 
     return heatmap

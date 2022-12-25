@@ -83,6 +83,9 @@ class Heatmap:
             self.ncel = 201
         self.res = (self.halfrng * 2) / (self.ncel - 1)
 
+#        print('nb,hr,nc,res=', self.nbackward, self.halfrng, self.ncel, self.res)
+        #raise
+
         # prepare canvas
         print(self.df_sites)
         print(self.df_sites.x.min(), self.df_sites.x.max(), self.df_sites.y.min(), self.df_sites.y.max())
@@ -138,6 +141,7 @@ class Heatmap:
             canvas = np.zeros_like(self.canvas)
 
         for stuff in self.arrays[dtm]:
+#            print('pdf.sum(), (pdf*evt).sum()=', stuff['pdf'].sum(), (stuff['pdf'] * evt[dtm]).sum())
             canvas[joff:(joff+self.ncel),ioff:(ioff+self.ncel)] += stuff['pdf'] * evt[dtm]
         return canvas
 
@@ -166,13 +170,16 @@ class Heatmap:
             lst = self.arrays[dtmf]
             print(dtm, ib, dtmf, len(lst), self.nbackward - ib - 1)
             #assert len(lst) == self.nbackward - ib - 1
+#            print(f'ib={ib}', lst[-1]['edge'].sum())
 
             pp, dd = self.calculator.calc_from_dens(lst[-1]['edge'])
             lst.append({'datetime': dtm, 'pdf': pp, 'edge': dd} )
+#            print(f'ib={ib}', pp.sum())
 
         # new trajectories
         pp, dd = self.calculator.calc_from_pnt(0, 0)
         self.arrays[dtm] = [{'datetime': dtm, 'pdf':pp, 'edge': dd}]
+#        print('new', pp.sum())
 
 
 

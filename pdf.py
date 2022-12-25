@@ -124,7 +124,10 @@ class CalcPdf:
                 .125 * pc[1:, 1:]
         )
         # print('p', p[(no-2):(no+3), (no-2):(no+3)])
-        # raise
+        #raise
+
+        # the formula is for density.  To have mass balance on cell value, the value is mulatiplied by area of cell
+        p *= self.res * self.res
 
         # mask out the protion beyond the rmax
         print('self.rmax', self.rmax)
@@ -154,6 +157,13 @@ class CalcPdf:
         # calibrate so that sum across the front becomes 2*pi*r
         # self.dens = self.dens * ( 2  * np.pi * rmax / self.dens.sum() )
 
+        ## calibrate so that sum across the front becomes 1/speed
+        print('sum(p)=', self.p.sum())
+        print('sum(dens)=', self.dens.sum())
+        if mass_balance:
+            self.dens = self.dens / self.dens.sum()
+        print('sum(dens)=', self.dens.sum())
+
     @staticmethod
     def clean_array(arr: npt.NDArray, frac_keep: float = .99) -> npt.NDArray:
         """
@@ -177,6 +187,8 @@ class CalcPdf:
         arr /= frac_keep  # adjust so that total of input dens is unchanged
 
         return arr
+
+
 
     def slice_array(self, arr: npt.NDArray, x0: float, y0: float) -> npt.NDArray:
         """
@@ -232,7 +244,7 @@ class CalcPdf:
 
         return o
 
-    def calc_from_pnt(self, x0: float, y0: float) -> (npt.NDArray, npt.NDArray):
+    def calc_from_pnt(self, x0: float, y0: float, ignore_seed: bool = False) -> (npt.NDArray, npt.NDArray):
         """
         pdf generated around point (x0, y0)
 
@@ -243,13 +255,21 @@ class CalcPdf:
         :return: typle of translated array of pdf (for t = [0,  t]), and density of front of mass (t = t)
         """
         # translate self.p, self.dense array and return
+#        print(np.unravel_index(self.p.argmax(), self.p.shape))
         p = self.slice_array(self.p, x0, y0)
+#        print(np.unravel_index(p.argmax(), p.shape))
+        if ignore_seed:
+            # cell offsets 
+            no = (self.ncel - 1) // 2
+            i0, j0 = [no + int(np.round(_ / self.res)) for _ in (x0, y0)]
+#            print('ig_seed', i0,j0,p[j0,i0])
+            p[j0,i0] = 0
         dens = self.slice_array(self.dens, x0, y0)
         dens = self.clean_array(dens)
 
         return np.ma.filled(p, 0), dens
 
-    def calc_from_dens(self, dens: npt.NDArray) -> (npt.NDArray, npt.NDArray):
+    def calc_from_dens(self, dens: npt.NDArray, ignore_seed: bool = True) -> (npt.NDArray, npt.NDArray):
         """
         pdf generated starting with initial distribution of density
 
@@ -268,7 +288,7 @@ class CalcPdf:
             # print(dens.max(), f, x0, y0)
 
             # grab p and (next) dense starting from a point
-            p, d = self.calc_from_pnt(x0, y0)
+            p, d = self.calc_from_pnt(x0, y0, ignore_seed)
 
             # cummulate p and dens
             p2 += (np.ma.filled(p, 0) * f)
