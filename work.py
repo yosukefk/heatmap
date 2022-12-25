@@ -242,7 +242,7 @@ def main(metfname, evtfname, sitefname, oroot, lnlt0=None, halfrng=None, ncel=20
     df_met = df_met.merge(df_sites.loc[:,['x', 'y', 'distance']], on='device', how='left')
     #print(df_met)
     df_met = (df_met
-            .loc[df_met.distance == df_met.distance.min(), :] 
+            #.loc[df_met.distance == df_met.distance.min(), :]  # debugging with only one met sensor
             .sort_values('datetime', ascending=False)
             .set_index(['datetime', 'device'])
             )
