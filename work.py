@@ -18,6 +18,8 @@ mpl.use('Agg')
 mpl.pylab.rcParams["figure.figsize"] = (4.8, 3.2)
 mpl.pylab.rcParams["figure.dpi"] = 300
 
+import sys
+sys.path.insert(0, './repo/plotter')
 from plotter import plotter_solo as psolo
 from plotter.plotter_background import BackgroundManager
 import cartopy
@@ -140,23 +142,41 @@ def mkplt_pylab(arr, fname, extent, ttle=None, contour=False, *args, **kwds):
 
 
 # plot with plotter
-def mkplt_plotter(arr, fname, x, y, prj, start_time, ttle=None, *args, **kwds):
+def mkplt_plotter(arr, fname, x, y, prj, start_time=None, tstamps=None, ttle=None, *args, **kwds):
 
-    arrx = np.expand_dims(arr, axis=0)
+    if len(arr.shape) == 2:
+        is2d = True
+
+        arrx = np.expand_dims(arr, axis=0)
+        tstamps=[start_time]
+    else:
+        is2d = False
+        arrx = arr
+        tstamps = tstamps
+
     contour_options = {**{'alpha': .5},
                        **{_: kwds[_] for _ in ('norm', 'levels', 'cmap') if _ in kwds}}
     if cartopy.__version__ >= '0.19':
         imgopts = [cimgt.GoogleTiles(style='satellite', cache=True)]
     else:
         imgopts = [cimgt.GoogleTiles(style='satellite')]
-    p = psolo.Plotter(arrx, tstamps=[start_time], x=x, y=y, projection=prj,
-                      plotter_options={
-                          'contour_options': contour_options,
-                          'background_manager': BackgroundManager(
-                              add_image_options=imgopts,
-                          ),
-                      })
-    p.savefig(fname)
+
+    p = psolo.Plotter(arrx, tstamps=tstamps, x=x, y=y, projection=prj, 
+            plotter_options={ 
+                'contour_options': contour_options, 
+                'background_manager': BackgroundManager( 
+                    add_image_options=imgopts,
+                    ), 
+                }
+            ) 
+    if is2d:
+        p.savefig(fname)
+    else:
+        if fname.endswith('.mp4'):
+            p.savemp4(fname, fps=1) 
+        elif fname.endswith('.webm'):
+            p.savewebm(fname, fps=1) 
+
 def mkplt_plotter_old(arr, fname, halfrng, lnlt0, start_time, ttle=None, *args, **kwds):
     ncel = arr.shape[-1]
     coords1d = np.linspace(-halfrng, halfrng, ncel)
@@ -310,8 +330,13 @@ def main(metfname, evtfname, sitefname, oroot, lnlt0=None, halfrng=None, ncel=20
 #    tempdir = tempfile.TemporaryDirectory()
 #    wdir = Path(tempdir.name)
     wdir = Path('.')
-    fpsopt = '-r 2'
+#    fpsopt = '-r 30'
+    fpsopt = '-r 1'
 #    fpsopt = ''
+
+#    slomoopt = ' -filter:v "setpts=15.0*PTS" '
+    slomoopt = ''
+
     norm_, bnorm_, bdry_, cm_ = mk_color(arr / len(heatmap.df_events.index))
     print(bdry_[-1], (arr/len(heatmap.df_events.index)).max())
     for i, dtm in enumerate(heatmap.df_events.index):
@@ -332,11 +357,12 @@ def main(metfname, evtfname, sitefname, oroot, lnlt0=None, halfrng=None, ncel=20
 
     png_w = mpl.pyplot.rcParams['figure.figsize'][0] * mpl.pyplot.rcParams['figure.dpi']
     print(png_w)
+
     adjust_width = f'-vf scale={int(png_w)}:-2'
     #adjust_width = ''
     #adjust_width = f'-vf scale=640:-2'
 
-    cmd = f'ffmpeg {fpsopt} -i "{Path(wdir) / fname_sh }" {adjust_width} -vframes {len(heatmap.df_events.index)} -crf 3 -vcodec libx264 -pix_fmt yuv420p -f mp4 -y  "{oname}"'
+    cmd = f'ffmpeg {fpsopt} -i "{Path(wdir) / fname_sh }" {adjust_width} -vframes {len(heatmap.df_events.index)} {slomoopt} -crf 3 -vcodec libx264 -pix_fmt yuv420p -f mp4 -y  "{oname}"'
     print(cmd)
     try:
         subprocess.run(shlex.split(cmd), check=True)
@@ -345,11 +371,19 @@ def main(metfname, evtfname, sitefname, oroot, lnlt0=None, halfrng=None, ncel=20
         oname2 = f'{oroot}_contour.gif'
         cmd2 = f'convert -delay 100 "{Path(wdir) / fname_sh2 }" "{oname}"'
         subprocess.run(shlex.split(cmd2), check=False)
+
+    oname2 = oname[:oname.rfind('.')] + '.webm'
+
+    cmd = f'ffmpeg {fpsopt} -i "{Path(wdir) / fname_sh }" {adjust_width} -vframes {len(heatmap.df_events.index)}                   -c:v libvpx -b:v 1000k        -pix_fmt yuv420p        -y  "{oname2}"'
+    print(cmd)
+    subprocess.run(shlex.split(cmd), check=True)
     
 
     #mkplt_pylab(np.maximum(arr, 0.001), f'{oroot}_contour.png', extent=extent, ttle=summary_title, contour=True, norm=bnorm, levels=bdry, cmap=cm)
     mkplt_pylab(arr, f'{oroot}_contour.png', extent=extent, ttle=summary_title, contour=True, norm=bnorm, levels=bdry, cmap=cm)
     mkplt_plotter(arr, f'{oroot}_w_bg.png', heatmap.xcoords, heatmap.ycoords, prj, start_time=heatmap.datetimes[0], norm=bnorm, levels=bdry, cmap=cm)
+    mkplt_plotter(heatmap.arr, f'{oroot}_w_bg.mp4', heatmap.xcoords, heatmap.ycoords, prj, tstamps=heatmap.datetimes, norm=bnorm, levels=bdry, cmap=cm)
+    mkplt_plotter(heatmap.arr, f'{oroot}_w_bg.webm', heatmap.xcoords, heatmap.ycoords, prj, tstamps=heatmap.datetimes, norm=bnorm, levels=bdry, cmap=cm)
 
 
     return heatmap
