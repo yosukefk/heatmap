@@ -43,6 +43,10 @@ class Heatmap:
 
     def prepare(self):
 
+        print('nmet:', len(self.df_met.index.unique(level='datetime')))
+        print('nevt:', len(self.df_events.index))
+        print('nbkw:', self.nbackward)
+
 
         assert len(self.df_met.index.unique(level='datetime')) - len(self.df_events.index) + 1 == self.nbackward
 

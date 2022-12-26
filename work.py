@@ -67,6 +67,8 @@ class MetReader:
         return rec
 
 
+
+
 # color scale on log
 def mk_color(arr):
     amax = 10 ** np.ceil(np.log10(arr.max()))
@@ -197,7 +199,7 @@ def set_xy(df_sites):
 
 
 def main(metfname, evtfname, sitefname, oroot, lnlt0=None, halfrng=None, ncel=201,
-         subdiv_minutes=1, nbackward=1, summary_title=None, mass_balance=True):
+         subdiv_minutes=1, nbackward=1, summary_title=None, mass_balance=True, single_met=False):
 
 
     # event file should be cleand:  have datetime column, and only columns with device names.  entire length must be the time period to be simulated (excl. backward min)
@@ -215,6 +217,13 @@ def main(metfname, evtfname, sitefname, oroot, lnlt0=None, halfrng=None, ncel=20
     print(df_events.index.min())
     print(df_events.index.max())
     print(dtm0, dtm1)
+
+    # fill time gap...
+    trng = pd.Series(
+            #pd.date_range(df_met['datetime'].min(), df_met['datetime'].max(), freq='min')
+            pd.date_range(df_events.index.min(), df_events.index.max(),  freq='min')
+            ).sort_values(ascending=False)
+    df_events = df_events.merge(trng.rename('datetime'), left_index=True, right_on='datetime', how='right').set_index('datetime')
 
     # site information
     df_sites = (
@@ -241,18 +250,52 @@ def main(metfname, evtfname, sitefname, oroot, lnlt0=None, halfrng=None, ncel=20
     df_met = df_met[(df_met['datetime'] >= dtm0) & (df_met['datetime'] <= dtm1)]
     df_met = df_met.merge(df_sites.loc[:,['x', 'y', 'distance']], on='device', how='left')
     #print(df_met)
+    if single_met:
+        df_met = df_met.loc[df_met.distance == df_met.distance.min(), :]  # debugging with only one met sensor
     df_met = (df_met
-            #.loc[df_met.distance == df_met.distance.min(), :]  # debugging with only one met sensor
+            .sort_values('datetime', ascending=False)
+    #        .set_index(['datetime', 'device'])
+            )
+    #print(df_met)
+
+
+    df_met = df_met.loc[~np.isnan(df_met.x), :] # drop obs with unknown location
+
+    # fill time gap...
+    trng = pd.Series(
+            #pd.date_range(df_met['datetime'].min(), df_met['datetime'].max(), freq='min')
+            pd.date_range(dtm0, dtm1,  freq='min')
+            ).sort_values(ascending=False)
+
+    df_metx = df_met.merge(trng.rename('filled'), left_on='datetime', right_on='filled', how='right')
+    missing = df_metx.loc[np.isnan(df_metx['datetime']),:]
+    lst = [df_met]
+    cannot = []
+    for tmiss in missing.itertuples():
+        to_dup = df_metx.loc[df_metx['datetime'] == tmiss.filled + pd.Timedelta('1min'), :]
+        if len(to_dup.index) == 0:
+            cannot.append(tmiss)
+        else:
+            to_dup['datetime'] = tmiss.filled
+            lst.append(to_dup)
+    if len(cannot)>0:
+        raise RuntimeError(f'cannot fill {cannot}')
+    df_met = pd.concat(lst)
+
+
+    df_met = (df_met
             .sort_values('datetime', ascending=False)
             .set_index(['datetime', 'device'])
             )
-    #print(df_met)
-    df_met = df_met.loc[~np.isnan(df_met.x), :]
+
+
+    df_met.to_csv('mymet.csv')
 
     df_sites = (df_sites
             .loc[df_sites.use, :] 
             .drop(columns=['use'])
             )
+
 
     heatmap = hm.Heatmap(df_met, df_events, df_sites, nbackward=nbackward, mass_balance=mass_balance)
 
